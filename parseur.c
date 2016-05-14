@@ -25,9 +25,10 @@ struct divided_collection {
 typedef struct divided_collection divided_collection;
 
 #define NB_DOC 70703 
-#define TAILLE_VOC 10000 //TODO: trouver réellement
+#define TAILLE_DOC_MAX 10000 // arbitraire
 #define TAILLE_ENTRAINEMENT 52500
 #define TAILLE_TEST 18203
+#define NB_CLASS 29
 
 doc tableau[NB_DOC]; // = malloc(70703*sizeof(cell)); 
 
@@ -74,23 +75,25 @@ divided_collection divide_tableau(doc * tab) {
     return col;
 }
 
-void parse_file(char *name) {
+int parse_file(char *name, int * doc_per_class) {
     FILE* base = NULL;
     base = fopen(name, "r");
     int i = 0;
+    int max = 0;
     if (base != NULL) {
-        char *line = malloc(sizeof (char) *TAILLE_VOC);
+        char *line = malloc(sizeof (char) *TAILLE_DOC_MAX);
         char *val;
         char *indVal;
         cell* cour;
         cell* prec;
         char *indVal_end, *val_end;
         doc* newDoc = malloc(sizeof (doc));
-        while (fgets(line, TAILLE_VOC, base) != NULL) {
+        while (fgets(line, TAILLE_DOC_MAX, base) != NULL) {
             // on lit ligne par ligne
             // une ligne correspond à un document
             indVal = strtok_r(line, " ", &indVal_end);
             newDoc->classe = atoi(indVal);
+            doc_per_class[newDoc->classe - 1] += 1;
             cell* firstCell = malloc(sizeof (cell));
             newDoc->vect = firstCell;
             cour = firstCell;
@@ -101,6 +104,8 @@ void parse_file(char *name) {
                 strcpy(indValCpy, indVal);
                 val = strtok_r(indValCpy, ":", &val_end);
                 cour->ind = atoi(val);
+                // on sotcke le maximum pour obtenir la dimension
+                if (atoi(val) > max) max = atoi(val);
                 val = strtok_r(NULL, ":", &val_end);
                 cour->val = atoi(val);
                 cell* newCell = malloc(sizeof (cell));
@@ -118,11 +123,25 @@ void parse_file(char *name) {
     } else {
         printf("Erreur lors de l'ouverture du fichier");
     }
+    return max;
 }
 
 int main() {
-    parse_file("BaseReuters-29");
-    affiche_tableau(tableau, NB_DOC);
+    int doc_per_class[NB_CLASS] = {0};
+    int dimension; //taille du vocabulaire (considèrée ici comme le max des indices)
+    // QUESTION : Est ce vraiment la bonne considèration ? 
+    dimension = parse_file("BaseReuters-29", doc_per_class); // valeur : 28
+    
+    //printf("Dimension du problème: %d", dimension);
+    //Ci-dessous affichage et vérification du nombre de documents par classe
+    /*int sum = 0;
+    for (int i = 0; i < NB_CLASS; i++) {
+        printf("%d : %d\n", i, doc_per_class[i]);
+        sum += doc_per_class[i];
+    }
+    printf("Somme : %d", sum);*/
+    
+    //affiche_tableau(tableau, NB_DOC);
     /* le tableau des documents est en variable globale 
      -> eventuellement à changer */
     divided_collection col = divide_tableau(tableau);
