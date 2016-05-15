@@ -30,7 +30,7 @@ typedef struct divided_collection divided_collection;
 #define TAILLE_TEST 18203
 #define NB_CLASS 29
 
-doc tableau[NB_DOC]; // = malloc(70703*sizeof(cell)); 
+doc tableau[NB_DOC]; 
 
 void affiche_tableau(doc * tab, int taille) {
     for (int i = 0; i < taille; i++) {
@@ -72,6 +72,7 @@ divided_collection divide_tableau(doc * tab) {
     for (int i = TAILLE_TEST; i < NB_DOC; i++) {
         col.entrainement[i-TAILLE_TEST] = tab[alea[i]];
     }
+    free(alea);
     return col;
 }
 
@@ -87,15 +88,14 @@ int parse_file(char *name, int * doc_per_class) {
         cell* cour;
         cell* prec;
         char *indVal_end, *val_end;
-        doc* newDoc = malloc(sizeof (doc));
         while (fgets(line, TAILLE_DOC_MAX, base) != NULL) {
             // on lit ligne par ligne
             // une ligne correspond à un document
             indVal = strtok_r(line, " ", &indVal_end);
-            newDoc->classe = atoi(indVal);
-            doc_per_class[newDoc->classe - 1] += 1;
+            tableau[i].classe = atoi(indVal);
+            doc_per_class[tableau[i].classe - 1] += 1;
             cell* firstCell = malloc(sizeof (cell));
-            newDoc->vect = firstCell;
+            tableau[i].vect = firstCell;
             cour = firstCell;
             indVal = strtok_r(NULL, " ", &indVal_end);
             while (strlen(indVal) >= 3) {
@@ -113,12 +113,14 @@ int parse_file(char *name, int * doc_per_class) {
                 prec = cour;
                 cour = newCell;
                 indVal = strtok_r(NULL, " ", &indVal_end);
+                free(indValCpy);
             }
             prec->suiv = NULL;
-            tableau[i] = *newDoc;
+            free(cour);
             cour = NULL;
             i++;
         }
+        free(line);
         fclose(base);
     } else {
         printf("Erreur lors de l'ouverture du fichier");
@@ -126,11 +128,24 @@ int parse_file(char *name, int * doc_per_class) {
     return max;
 }
 
+void free_collection(doc * tab, int taille) {
+    for(int i = 0; i< taille;i++){
+       cell* cour = tab[i].vect;
+       cell* courNext;
+        while (cour != NULL) {
+            courNext = cour->suiv;
+            free(cour);
+            cour = courNext;
+        }
+    }
+}
+
+
 int main() {
     int doc_per_class[NB_CLASS] = {0};
     int dimension; //taille du vocabulaire (considèrée ici comme le max des indices)
     // QUESTION : Est ce vraiment la bonne considèration ? 
-    dimension = parse_file("BaseReuters-29", doc_per_class); // valeur : 28
+    dimension = parse_file("BaseReuters-29", doc_per_class); 
     
     //printf("Dimension du problème: %d", dimension);
     //Ci-dessous affichage et vérification du nombre de documents par classe
@@ -147,5 +162,8 @@ int main() {
     divided_collection col = divide_tableau(tableau);
     //affiche_tableau(col.test, TAILLE_TEST);
     //affiche_tableau(col.entrainement, TAILLE_ENTRAINEMENT);
+    free_collection(tableau, NB_DOC);
+    free(col.test);
+    free(col.entrainement);
     return 0;
 }
