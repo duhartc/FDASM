@@ -34,7 +34,6 @@ typedef struct divided_collection divided_collection;
 
 doc tableau[NB_DOC]; 
 
-
 void affiche_tableau(doc * tab, int taille) {
     for (int i = 0; i < taille; i++) {
         printf("%d ", tab[i].classe);
@@ -44,6 +43,7 @@ void affiche_tableau(doc * tab, int taille) {
             cour = cour->suiv;
         }
         printf("\n");
+	fflush(stdout);
     }
 }
 void melanger(int* tableau, int taille){
@@ -58,8 +58,6 @@ void melanger(int* tableau, int taille){
     }
 
 }
-
-//Scinde en deux collections (train et test) 
 divided_collection divide_tableau(doc * tab) {
     divided_collection col;
     srand(time(NULL));
@@ -98,10 +96,10 @@ int parse_file(char *name, int * doc_per_class) {
             // une ligne correspond à un document
             indVal = strtok_r(line, " ", &indVal_end);
             tableau[i].classe = atoi(indVal);
-	    tableau[i].taille_doc =0;
             doc_per_class[tableau[i].classe - 1] += 1;
             cell* firstCell = malloc(sizeof (cell));
             tableau[i].vect = firstCell;
+	    tableau[i].taille_doc =0;
             cour = firstCell;
             indVal = strtok_r(NULL, " ", &indVal_end);
             while (strlen(indVal) >= 3) {
@@ -110,7 +108,6 @@ int parse_file(char *name, int * doc_per_class) {
                 strcpy(indValCpy, indVal);
                 val = strtok_r(indValCpy, ":", &val_end);
                 cour->ind = atoi(val);
-		//taille du document
 		tableau[i].taille_doc++;
                 // on sotcke le maximum pour obtenir la dimension
                 if (atoi(val) > max) max = atoi(val);
@@ -126,6 +123,7 @@ int parse_file(char *name, int * doc_per_class) {
             prec->suiv = NULL;
             free(cour);
             cour = NULL;
+	    // printf("taille du document %i : %i \n", i,tableau[i].taille_doc); 
             i++;
         }
         free(line);
@@ -149,112 +147,131 @@ void free_collection(doc * tab, int taille) {
 }
 
 
-void EstimationMultinomiale(doc *train, double theta[][NB_CLASS], double *pi, int *n) {
+
+void EstimationMultinomiale(doc *train, double **theta, double *pi, int *n) {
   int k=0; //indice de la classe
   cell *tmp;
   int ind_tmp=1;
-
-    printf("AAAAAAAAAAAAAAA");
   for (int i=0; i<TAILLE_ENTRAINEMENT; i++) {
     k = train[i].classe;
-    pi[k] += 1.0;
+    pi[k-1] += 1;
     tmp = train[i].vect;
-    for (int j=1; j <= train->taille_doc; j++) {
+    for (int j=1; j <= train[i].taille_doc; j++) {
       //parcours de la liste chainée pour aller au j-ème élément
       while (ind_tmp < j) {
 	tmp = tmp->suiv;
 	ind_tmp++;
       }
-      theta[tmp->ind][k] += (double) tmp->val;
-      n[k] +=  round(theta[tmp->ind][k]);
+      theta[tmp->ind-1][k-1] += (double) tmp->val;
+      n[k-1] += theta[tmp->ind-1][k-1];
     }
+    ind_tmp = 1;
   }
 
   //normalisation
+  for (int k=0; k<NB_CLASS; k++) {
+    pi[k] /= TAILLE_ENTRAINEMENT ;
+  }
   for (int i=0; i<TAILLE_ENTRAINEMENT; i++) {
     k = train[i].classe;
-    pi[k] = pi[k]/TAILLE_ENTRAINEMENT;
     tmp = train[i].vect;
-    for (int j=1; j <= train->taille_doc; j++) {
+    for (int j=1; j <= train[i].taille_doc; j++) {
       //parcours de la liste chainée pour aller au j-ème élément
       while (ind_tmp < j) {
 	tmp = tmp->suiv;
 	ind_tmp++;
       }
-      theta[tmp->ind][k] /= (double) n[k];
+      theta[tmp->ind-1][k-1] /= n[k-1];
     }
+    ind_tmp = 1;
   }
 }
 
-void PredictionMultinomiale(doc *test, double theta[][NB_CLASS], double *pi, double *pbc) {
+void PredictionMultinomiale(doc *test, double **theta, double *pi, double *pbc) {
   int classe=0;
-  double v[NB_CLASS] = {0};
   double max=-pow(10,20);
+  double v[NB_CLASS]={0};
   cell *tmp;
   int ind_tmp=1;
   for (int i=0; i<TAILLE_TEST; i++) {
     for (int k=1; k<=NB_CLASS; k++) {
-      v[k]=log(pi[k]);
-      for (int j=1; j <= test->taille_doc; j++) {
+      v[k-1]=log(pi[k-1]);
+      tmp = test[i].vect;
+      for (int j=1; j <= test[i].taille_doc; j++) {
       //parcours de la liste chainée pour aller au j-ème élément
       while (ind_tmp < j) {
 	tmp = tmp->suiv;
 	ind_tmp++;
       }
-      v[k] += ((double)tmp->val)*log(theta[tmp->ind][k]);
-      if (v[k] > max) {
-	max = v[k];
+      v[k-1] += (tmp->val)*log(theta[tmp->ind-1][k-1]);
+      if (v[k-1] > max) {
+	max = v[k-1];
 	classe = k;
       }
       }
-    }
+      ind_tmp=1;
+    
     if (classe == test[i].classe) {
-      pbc[classe] += 1;
+      pbc[classe-1] += 1.0;
+    }
     }
   }
 }
 
+
 int main() {
     int doc_per_class[NB_CLASS] = {0};
-    //taille du vocabulaire : V = 141 144
-    //printf("Dimension du problème: %d \n", dimension);
-    int dimension = parse_file("BaseReuters-29", doc_per_class);
-    //taille du problème : CardTheta =dimension*NB_CLASS = 4 093 176;
+    int dimension; //taille du vocabulaire (considèrée ici comme le max des indices)
     //initialisation des données
-    double Theta[141144][NB_CLASS] = {{1.0}}; 
-    double Pi[NB_CLASS] = {0};
-    int N[NB_CLASS] = {0};
-    double PBC[NB_CLASS] = {0};
-
-    //printf("Dimension du problème: %d \n", dimension);
-    //Ci-dessous affichage et vérification du nombre de documents par classe
-    /*int sum = 0;
-    for (int i = 0; i < NB_CLASS; i++) {
-        printf("%d : %d\n", i, doc_per_class[i]);
-        sum += doc_per_class[i];
+    double **Theta= malloc(141144*sizeof(double*));
+    for (int i=0; i<141144; i++) {
+      Theta[i] = malloc(NB_CLASS*sizeof(double));
     }
-    printf("Somme : %d", sum);*/
+    for (int i=0; i<141144; i++) {
+      for (int j=0; j<NB_CLASS; j++) {
+	Theta[i][j] = 0;
+      }
+    }
+    double *Pi = malloc(NB_CLASS*sizeof(double));
+    int* N = malloc(NB_CLASS*sizeof(int));
+    double *PBC = malloc(NB_CLASS*sizeof(double));
+    for (int j=0; j<NB_CLASS; j++) {
+	Pi[j] = 0;
+	N[j] = 0;
+	PBC[j] = 0;
+    }
+    dimension = parse_file("BaseReuters-29", doc_per_class); 
     
-    //affiche_tableau(tableau, NB_DOC);
-    /* le tableau des documents est en variable globale 
-     -> eventuellement à changer */
-    divided_collection col = divide_tableau(tableau);
-    //affiche_tableau(col.test, TAILLE_TEST);
-    //affiche_tableau(col.entrainement, TAILLE_ENTRAINEMENT);
-
-    EstimationMultinomiale(col.entrainement,Theta, Pi, N);
-    PredictionMultinomiale(col.test, Theta, Pi, PBC);
-    //calcul de performance
-    double sumBC=0;
-    for (int l=0; l<NB_CLASS;l++) {
-      sumBC += PBC[l];
+    //printf("Dimension du problème: %d", dimension);
+    divided_collection col;
+    for (int m=0; m<20; m++) {
+      col = divide_tableau(tableau);
+ 
+      EstimationMultinomiale(col.entrainement,Theta, Pi, N);
+      PredictionMultinomiale(col.test, Theta, Pi, PBC);
+    
+      //calcul de performance
+      double sumBC=0;
+      for (int l=0; l<NB_CLASS;l++) {
+	sumBC += PBC[l];
+      }
+      double perf = sumBC/TAILLE_TEST;
+      printf("Taux de bonne classification %i: %f \n", m, perf);
+      fflush(stdout);
+      for (int j=0; j<NB_CLASS; j++) {
+	PBC[j] = 0;
+      }
     }
-    double perf = sumBC/TAILLE_TEST;
-    printf("Taux de bonne classification : %f \n", perf);
-      
-    //désallocation mémoire
+
     free_collection(tableau, NB_DOC);
     free(col.test);
     free(col.entrainement);
+    for (int i=0; i<141144; i++) {
+      free(Theta[i]);
+    }
+    free(Theta);
+    free(Pi);
+    free(N);
+    free(PBC);
     return 0;
 }
