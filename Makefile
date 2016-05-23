@@ -12,6 +12,6 @@ parseur.o: parseur.c
 	$(CC) -o $@ -c $< $(CFLAGS) -lm
 
 check:
-	./$(PROG)
+	./$(PROG) > res.txt
 clean: 
 	rm $(OBJS) $(PROG)

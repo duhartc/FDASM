@@ -4,7 +4,7 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
-
+ 
 struct cellule {
     int ind;
     int val;
@@ -150,8 +150,84 @@ void free_collection(doc * tab, int taille) {
 
 void EstimationMultinomiale(doc *train, double **theta, double *pi, int *n) {
   int k=0; //indice de la classe
+  cell *tmp; //représente une composante du vecteur ind-val, variable tampon
+  int ind_tmp=1;
+
+  for (int i=0; i<TAILLE_ENTRAINEMENT; i++) {
+    k = train[i].classe; //on récupère la classe du document i
+    pi[k-1] += 1;
+    tmp = train[i].vect;
+    for (int j=1; j <= train[i].taille_doc; j++) {
+      //parcours de la liste chainée pour aller au j-ème élément
+      while (ind_tmp < j) {
+	tmp = tmp->suiv;
+	ind_tmp++;
+      }
+      //calcul effectif
+      theta[tmp->ind-1][k-1] += (double) tmp->val;
+    }
+    n[k-1] += theta[tmp->ind-1][k-1];
+    ind_tmp = 1;
+  }
+
+  //normalisation
+  for (int k=0; k<NB_CLASS; k++) {
+    pi[k] /= TAILLE_ENTRAINEMENT; //probabilité de la classe k !
+  }
+  for (int i=0; i<TAILLE_ENTRAINEMENT; i++) {
+    k = train[i].classe;
+    tmp = train[i].vect;
+    for (int j=1; j <= train[i].taille_doc; j++) {
+      //parcours de la liste chainée pour aller au j-ème élément
+      while (ind_tmp < j) {
+	tmp = tmp->suiv;
+	ind_tmp++;
+      }
+      theta[tmp->ind-1][k-1] /= n[k-1];
+    }
+    ind_tmp = 1;
+  }
+}
+
+void PredictionMultinomiale(doc *test, double **theta, double *pi, double *pbc) {
+  int classe=0; //classe prédite
+  double max=-pow(10,20);
+  double v[NB_CLASS]={0}; //vecteur "tampon" servant à calculer le max
   cell *tmp;
   int ind_tmp=1;
+  for (int i=0; i<TAILLE_TEST; i++) {
+    for (int k=1; k<=NB_CLASS; k++) {
+      v[k-1]=log(pi[k-1]);
+      tmp = test[i].vect;
+      for (int j=1; j <= test[i].taille_doc; j++) {
+	//parcours de la liste chainée pour aller au j-ème élément
+	while (ind_tmp < j) {
+	  tmp = tmp->suiv;
+	  ind_tmp++;
+	}
+	v[k-1] += (tmp->val)*log(theta[tmp->ind-1][k-1]);
+	//calcul du max et de la classe prédite
+	if (v[k-1] > max) {
+	  max = v[k-1];
+	  classe = k;
+	}
+      }
+      ind_tmp=1;
+
+      //On comptabilise les classes correctement prédites
+      if (classe == test[i].classe) {
+	pbc[classe-1] += 1.0;
+      }
+    }
+  }
+}
+
+/*
+void EstimationBernoulli(doc *train, double **theta, double *pi) {
+  int k=0; //indice de la classe
+  cell *tmp;
+  int ind_tmp=1;
+
   for (int i=0; i<TAILLE_ENTRAINEMENT; i++) {
     k = train[i].classe;
     pi[k-1] += 1;
@@ -162,8 +238,7 @@ void EstimationMultinomiale(doc *train, double **theta, double *pi, int *n) {
 	tmp = tmp->suiv;
 	ind_tmp++;
       }
-      theta[tmp->ind-1][k-1] += (double) tmp->val;
-      n[k-1] += theta[tmp->ind-1][k-1];
+      theta[tmp->ind-1][k-1] += 1;
     }
     ind_tmp = 1;
   }
@@ -187,7 +262,7 @@ void EstimationMultinomiale(doc *train, double **theta, double *pi, int *n) {
   }
 }
 
-void PredictionMultinomiale(doc *test, double **theta, double *pi, double *pbc) {
+void PredictionBernoulli(doc *test, double **theta, double *pi, double *pbc) {
   int classe=0;
   double max=-pow(10,20);
   double v[NB_CLASS]={0};
@@ -203,7 +278,8 @@ void PredictionMultinomiale(doc *test, double **theta, double *pi, double *pbc) 
 	tmp = tmp->suiv;
 	ind_tmp++;
       }
-      v[k-1] += (tmp->val)*log(theta[tmp->ind-1][k-1]);
+      v[k-1] += log(theta[tmp->ind-1][k-1]);
+      
       if (v[k-1] > max) {
 	max = v[k-1];
 	classe = k;
@@ -214,16 +290,21 @@ void PredictionMultinomiale(doc *test, double **theta, double *pi, double *pbc) 
     if (classe == test[i].classe) {
       pbc[classe-1] += 1.0;
     }
-    }
+  }
   }
 }
-
+*/
 
 int main() {
     int doc_per_class[NB_CLASS] = {0};
-    int dimension; //taille du vocabulaire (considèrée ici comme le max des indices)
-    //initialisation des données
+    int dimension; //taille du vocabulaire (V)
+   
+    //déclaration de variables utiles au calcul multinomiale
     double **Theta= malloc(141144*sizeof(double*));
+    double *Pi = malloc(NB_CLASS*sizeof(double));
+    int* N = malloc(NB_CLASS*sizeof(int));
+    double *PBC = malloc(NB_CLASS*sizeof(double));
+    //initialisation des variables
     for (int i=0; i<141144; i++) {
       Theta[i] = malloc(NB_CLASS*sizeof(double));
     }
@@ -232,22 +313,28 @@ int main() {
 	Theta[i][j] = 0;
       }
     }
-    double *Pi = malloc(NB_CLASS*sizeof(double));
-    int* N = malloc(NB_CLASS*sizeof(int));
-    double *PBC = malloc(NB_CLASS*sizeof(double));
     for (int j=0; j<NB_CLASS; j++) {
 	Pi[j] = 0;
 	N[j] = 0;
 	PBC[j] = 0;
     }
+   
     dimension = parse_file("BaseReuters-29", doc_per_class); 
-    
     //printf("Dimension du problème: %d", dimension);
+    //pour afficher V, on trouve 141144
+
+    //On crée deux collections : train et test
     divided_collection col;
+    //Vecteur stockant les performances pour les 20 itérations
+    double *perf = malloc(20*sizeof(double));
+    double moyenne_perf =0;
+
     for (int m=0; m<20; m++) {
+      //on scinde les données en deux
       col = divide_tableau(tableau);
- 
+      //estimation : on remplit Pi, Theta, N
       EstimationMultinomiale(col.entrainement,Theta, Pi, N);
+      //prediction : on remplit PBC à partir de Theta et Pi
       PredictionMultinomiale(col.test, Theta, Pi, PBC);
     
       //calcul de performance
@@ -255,14 +342,19 @@ int main() {
       for (int l=0; l<NB_CLASS;l++) {
 	sumBC += PBC[l];
       }
-      double perf = sumBC/TAILLE_TEST;
-      printf("Taux de bonne classification %i: %f \n", m, perf);
+      perf[m] = sumBC/TAILLE_TEST;
+      printf("Taux de bonne classification %i: %f \n", m, perf[m]);
       fflush(stdout);
+      //on reinitialise PBC à chaque itération
       for (int j=0; j<NB_CLASS; j++) {
 	PBC[j] = 0;
       }
+      moyenne_perf += perf[m]/20;
     }
+    printf("Taux de bonne classification moyen : %f \n", moyenne_perf);
 
+
+    //désallocation mémoire
     free_collection(tableau, NB_DOC);
     free(col.test);
     free(col.entrainement);
@@ -273,5 +365,6 @@ int main() {
     free(Pi);
     free(N);
     free(PBC);
+    free(perf);
     return 0;
 }

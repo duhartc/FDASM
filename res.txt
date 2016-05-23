@@ -1,0 +1,22 @@
+Taux de bonne classification 0: 0.563973 
+Taux de bonne classification 1: 0.576718 
+Taux de bonne classification 2: 0.511399 
+Taux de bonne classification 3: 0.904122 
+Taux de bonne classification 4: 0.689831 
+Taux de bonne classification 5: 0.533703 
+Taux de bonne classification 6: 0.675603 
+Taux de bonne classification 7: 0.863484 
+Taux de bonne classification 8: 0.895886 
+Taux de bonne classification 9: 0.576080 
+Taux de bonne classification 10: 0.939955 
+Taux de bonne classification 11: 0.745591 
+Taux de bonne classification 12: 0.855518 
+Taux de bonne classification 13: 0.771082 
+Taux de bonne classification 14: 0.861891 
+Taux de bonne classification 15: 0.909342 
+Taux de bonne classification 16: 0.511031 
+Taux de bonne classification 17: 0.909784 
+Taux de bonne classification 18: 0.572818 
+Taux de bonne classification 19: 0.900346 
+Taux de bonne classification moyen : 0.738408
+Standard deviation : 0.159803 (écart type, un peu grand quand meme)
